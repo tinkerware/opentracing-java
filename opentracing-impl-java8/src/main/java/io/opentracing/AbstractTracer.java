@@ -17,6 +17,7 @@ import io.opentracing.propagation.Extractor;
 import io.opentracing.propagation.Format;
 import io.opentracing.propagation.Injector;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -34,13 +35,17 @@ abstract class AbstractTracer implements Tracer {
     }
 
     @Override
-    public <C> void inject(SpanContext spanContext, Format<C> format, C carrier) {
-        registry.getInjector((Class<C>)carrier.getClass()).inject(spanContext, carrier);
+    public <C> void inject(SpanContext spanContext, Format<? super C> format, C carrier) {
+        @SuppressWarnings("unchecked")
+        Class<C> carrierType = (Class<C>) carrier.getClass();  // self-type
+        registry.getInjector(carrierType).inject(spanContext, carrier);
     }
 
     @Override
-    public <C> SpanContext extract(Format<C> format, C carrier) {
-        return registry.getExtractor((Class<C>)carrier.getClass()).extract(carrier);
+    public <C> SpanContext extract(Format<? super C> format, C carrier) {
+        @SuppressWarnings("unchecked")
+        Class<C> carrierType = (Class<C>) carrier.getClass();  // self-type
+        return registry.getExtractor(carrierType).extract(carrier);
     }
 
     public <C> Injector<C> register(Class<C> carrierType, Injector<C> injector) {
@@ -52,52 +57,70 @@ abstract class AbstractTracer implements Tracer {
     }
 
     private static class PropagationRegistry {
+        // For any class<C> key, the corresponding injector/extractor has type Injector<C>.
+        private final ConcurrentMap<Class<?>, Injector<?>> injectors = new ConcurrentHashMap<>();
+        private final ConcurrentMap<Class<?>, Extractor<?>> extractors = new ConcurrentHashMap<>();
 
-        private final ConcurrentMap<Class, Injector> injectors = new ConcurrentHashMap<>();
-        private final ConcurrentMap<Class, Extractor> extractors = new ConcurrentHashMap<>();
-
-        public <C> Injector<C> getInjector(Class<C> carrierType) {
+        public <C> Injector<? super C> getInjector(Class<C> carrierType) {
             Class<?> c = carrierType;
             // match first on concrete classes
             do {
                 if (injectors.containsKey(c)) {
-                    return injectors.get(c);
+                    // Safe since c can only be a super-type of carrierType.
+                    @SuppressWarnings("unchecked")
+                    Injector<? super C> injector = (Injector<? super C>) injectors.get(c);
+                    return injector;
                 }
                 c = c.getSuperclass();
             } while (c != null);
             // match second on interfaces
             for (Class<?> iface : carrierType.getInterfaces()) {
                 if (injectors.containsKey(iface)) {
-                    return injectors.get(iface);
+                    // Safe since iface can only be a super-type of carrierType.
+                    @SuppressWarnings("unchecked")
+                    Injector<? super C> injector = (Injector<? super C>) injectors.get(iface);
+                    return injector;
                 }
             }
             throw new AssertionError("no registered injector for " + carrierType.getName());
         }
 
-        public <C> Extractor<C> getExtractor(Class<C> carrierType) {
+        public <C> Extractor<? super C> getExtractor(Class<C> carrierType) {
             Class<?> c = carrierType;
             // match first on concrete classes
             do {
                 if (extractors.containsKey(c)) {
-                    return extractors.get(c);
+                    // Safe since c can only be a super-type of carrierType.
+                    @SuppressWarnings("unchecked")
+                    Extractor<? super C> extractor = (Extractor<? super C>) extractors.get(c);
+                    return extractor;
                 }
                 c = c.getSuperclass();
             } while (c != null);
             // match second on interfaces
             for (Class<?> iface : carrierType.getInterfaces()) {
                 if (extractors.containsKey(iface)) {
-                    return extractors.get(iface);
+                    // Safe since iface can only be a super-type of carrierType.
+                    @SuppressWarnings("unchecked")
+                    Extractor<? super C> extractor = (Extractor<? super C>) extractors.get(iface);
+                    return extractor;
                 }
             }
             throw new AssertionError("no registered extractor for " + carrierType.getName());
         }
 
         public <C> Injector<C> register(Class<C> carrierType, Injector<C> injector) {
-            return injectors.putIfAbsent(carrierType, injector);
+            // Safe since the only way to add new injectors is above.
+            @SuppressWarnings("unchecked")
+            Injector<C> result = (Injector<C>) injectors.putIfAbsent(carrierType, injector);
+            return result;
         }
 
         public <C> Extractor<C> register(Class<C> carrierType, Extractor<C> extractor) {
-            return extractors.putIfAbsent(carrierType, extractor);
+            // Safe since the only way to add new extractors is above.
+            @SuppressWarnings("unchecked")
+            Extractor<C> result = (Extractor<C>) extractors.putIfAbsent(carrierType, extractor);
+            return result;
         }
     }
 

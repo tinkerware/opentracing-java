@@ -23,9 +23,9 @@ public final class NoopTracer implements Tracer {
     }
 
     @Override
-    public <C> void inject(SpanContext spanContext, Format<C> format, C carrier) {}
+    public <C> void inject(SpanContext spanContext, Format<? super C> format, C carrier) {}
 
     @Override
-    public <C> SpanContext extract(Format<C> format, C carrier) { return null; }
+    public <C> SpanContext extract(Format<? super C> format, C carrier) { return null; }
 
 }

@@ -58,7 +58,7 @@ public interface Tracer {
    * @see io.opentracing.propagation.Format
    * @see io.opentracing.propagation.Format.Builtin
    */
-  <C> void inject(SpanContext spanContext, Format<C> format, C carrier);
+  <C> void inject(SpanContext spanContext, Format<? super C> format, C carrier);
 
   /**
    * Extract a SpanContext from a `carrier` of a given type, presumably after propagation across a process boundary.
@@ -81,7 +81,7 @@ public interface Tracer {
    * @see io.opentracing.propagation.Format
    * @see io.opentracing.propagation.Format.Builtin
    */
-  <C> SpanContext extract(Format<C> format, C carrier);
+  <C> SpanContext extract(Format<? super C> format, C carrier);
 
 
   interface SpanBuilder {
